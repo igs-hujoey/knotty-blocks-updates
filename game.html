@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Knotty Blocks</title>
+<style>
+  :root{
+    --bark-900:#2b1d14;
+    --bark-800:#3a2818;
+    --bark-700:#4a331f;
+    --panel:#5c4128;
+    --panel-light:#6e4f30;
+    --cell-empty:#3d2b1a;
+    --cell-border:#2a1c11;
+    --ink:#f3e6d0;
+    --ink-dim:#c9b596;
+    --accent:#e0a458;
+    --good:#7fbf6a;
+    --bad:#c0564a;
+    --oak-1:#d9a066; --oak-2:#c98a4f;
+    --walnut-1:#8a5a34; --walnut-2:#6f4526;
+    --mahogany-1:#a3432f; --mahogany-2:#832f1f;
+    --cherry-1:#b5583f; --cherry-2:#8f3f2a;
+    --pine-1:#c2a06a; --pine-2:#a3824f;
+    --birch-1:#ecdfbf; --birch-2:#d3c199;
+    --ebony-1:#4d382a; --ebony-2:#33241a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none;}
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background:
+      radial-gradient(ellipse at 50% -10%, var(--bark-700), var(--bark-900) 70%);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    color:var(--ink);
+    touch-action:none;
+  }
+  #app{
+    position:relative; width:100%; height:100%;
+    display:flex; flex-direction:column; align-items:center;
+    padding:env(safe-area-inset-top,10px) 12px env(safe-area-inset-bottom,10px);
+    max-width:520px; margin:0 auto;
+  }
+  header{
+    width:100%; display:flex; align-items:center; justify-content:space-between;
+    padding:6px 4px 10px;
+  }
+  .brand{display:flex; align-items:center; gap:8px;}
+  .brand-badge{
+    width:34px;height:34px;border-radius:9px;
+    background:linear-gradient(145deg,var(--oak-1),var(--oak-2));
+    box-shadow: inset 0 -3px 0 rgba(0,0,0,.25), inset 0 2px 0 rgba(255,255,255,.25);
+    display:flex;align-items:center;justify-content:center;font-size:18px;
+  }
+  .brand-name{font-weight:800; font-size:19px; letter-spacing:.3px;}
+  .brand-name small{display:block; font-weight:500; font-size:10px; color:var(--ink-dim); letter-spacing:1px; text-transform:uppercase;}
+  .scores{display:flex; gap:8px;}
+  .score-box{
+    background:var(--panel); border-radius:10px; padding:6px 10px; min-width:56px; text-align:center;
+    box-shadow: inset 0 -2px 0 rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.08);
+  }
+  .score-box .label{font-size:9px; text-transform:uppercase; letter-spacing:1px; color:var(--ink-dim);}
+  .score-box .value{font-size:18px; font-weight:800; color:var(--accent); line-height:1.3;}
+
+  #banner{
+    width:100%; text-align:center; font-size:12px; color:var(--ink-dim);
+    min-height:16px; margin-bottom:2px;
+  }
+
+  #next-bar{
+    width:100%; max-width:420px; display:flex; align-items:center; gap:10px;
+    background:var(--panel); border-radius:10px; padding:6px 12px; margin-bottom:8px;
+    box-shadow: inset 0 -2px 0 rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.08);
+  }
+  .next-label{ font-size:9px; text-transform:uppercase; letter-spacing:1px; color:var(--ink-dim); }
+  #next-preview{ display:flex; align-items:center; justify-content:center; min-height:46px; flex:1; }
+
+  #board-wrap{
+    position:relative; width:auto; height:min(60vh, 640px); aspect-ratio:10/20;
+    background:var(--panel);
+    border-radius:14px; padding:8px;
+    box-shadow: inset 0 -4px 0 rgba(0,0,0,.3), inset 0 3px 0 rgba(255,255,255,.06), 0 10px 24px rgba(0,0,0,.35);
+    touch-action:none;
+  }
+  #board{
+    display:grid; grid-template-columns:repeat(10,1fr); grid-template-rows:repeat(20,1fr);
+    gap:2px; width:100%; height:100%;
+    touch-action:none;
+  }
+  .cell{
+    background:var(--cell-empty);
+    border-radius:3px;
+    box-shadow:inset 0 2px 3px rgba(0,0,0,.4);
+    position:relative;
+  }
+  .cell.filled{ box-shadow:none; }
+  .cell.clearing{ animation:pop .22s ease forwards; }
+  @keyframes pop{
+    0%{ transform:scale(1); filter:brightness(1); }
+    50%{ transform:scale(1.12); filter:brightness(1.6); }
+    100%{ transform:scale(0); filter:brightness(2); opacity:0; }
+  }
+
+  .block{
+    position:absolute; inset:0; border-radius:3px;
+    box-shadow: inset 0 -2px 0 rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.28), 0 1px 2px rgba(0,0,0,.3);
+    background-image:
+      repeating-linear-gradient(100deg, rgba(0,0,0,.06) 0px, rgba(0,0,0,.06) 2px, transparent 2px, transparent 7px);
+  }
+  .wood-oak{ background-color:var(--oak-2); background-image:
+      repeating-linear-gradient(100deg, rgba(0,0,0,.08) 0px, rgba(0,0,0,.08) 2px, transparent 2px, transparent 8px),
+      linear-gradient(160deg,var(--oak-1),var(--oak-2)); }
+  .wood-walnut{ background-color:var(--walnut-2); background-image:
+      repeating-linear-gradient(100deg, rgba(0,0,0,.1) 0px, rgba(0,0,0,.1) 2px, transparent 2px, transparent 8px),
+      linear-gradient(160deg,var(--walnut-1),var(--walnut-2)); }
+  .wood-mahogany{ background-color:var(--mahogany-2); background-image:
+      repeating-linear-gradient(100deg, rgba(0,0,0,.1) 0px, rgba(0,0,0,.1) 2px, transparent 2px, transparent 8px),
+      linear-gradient(160deg,var(--mahogany-1),var(--mahogany-2)); }
+  .wood-cherry{ background-color:var(--cherry-2); background-image:
+      repeating-linear-gradient(100deg, rgba(0,0,0,.1) 0px, rgba(0,0,0,.1) 2px, transparent 2px, transparent 8px),
+      linear-gradient(160deg,var(--cherry-1),var(--cherry-2)); }
+  .wood-pine{ background-color:var(--pine-2); background-image:
+      repeating-linear-gradient(100deg, rgba(0,0,0,.08) 0px, rgba(0,0,0,.08) 2px, transparent 2px, transparent 8px),
+      linear-gradient(160deg,var(--pine-1),var(--pine-2)); }
+  .wood-birch{ background-color:var(--birch-2); background-image:
+      repeating-linear-gradient(100deg, rgba(0,0,0,.06) 0px, rgba(0,0,0,.06) 2px, transparent 2px, transparent 8px),
+      linear-gradient(160deg,var(--birch-1),var(--birch-2)); }
+  .wood-ebony{ background-color:var(--ebony-2); background-image:
+      repeating-linear-gradient(100deg, rgba(255,255,255,.05) 0px, rgba(255,255,255,.05) 2px, transparent 2px, transparent 8px),
+      linear-gradient(160deg,var(--ebony-1),var(--ebony-2)); }
+
+  #combo-flash{
+    position:absolute; top:38%; left:50%; transform:translate(-50%,-50%) scale(.6);
+    font-size:28px; font-weight:900; color:var(--accent);
+    text-shadow:0 3px 0 rgba(0,0,0,.4); opacity:0; pointer-events:none; z-index:500;
+    letter-spacing:1px; text-align:center; width:90%;
+  }
+  #combo-flash.show{ animation:flash .7s ease; }
+  @keyframes flash{
+    0%{opacity:0; transform:translate(-50%,-50%) scale(.5);}
+    25%{opacity:1; transform:translate(-50%,-50%) scale(1.1);}
+    70%{opacity:1; transform:translate(-50%,-50%) scale(1);}
+    100%{opacity:0; transform:translate(-50%,-50%) scale(1) translateY(-30px);}
+  }
+
+  #overlay{
+    position:absolute; inset:0; background:rgba(20,12,6,.86);
+    display:none; align-items:center; justify-content:center; z-index:900;
+    flex-direction:column; text-align:center; padding:24px;
+  }
+  #overlay.show{ display:flex; }
+  #overlay h1{ font-size:24px; margin:0 0 6px; }
+  #overlay p{ color:var(--ink-dim); margin:0 0 18px; }
+  #overlay .final-score{ font-size:46px; font-weight:900; color:var(--accent); margin-bottom:4px;}
+  button.primary{
+    background:linear-gradient(160deg,var(--oak-1),var(--oak-2));
+    border:none; color:#2b1d14; font-weight:800; font-size:16px;
+    padding:12px 28px; border-radius:12px; cursor:pointer;
+    box-shadow: inset 0 -3px 0 rgba(0,0,0,.25), inset 0 2px 0 rgba(255,255,255,.35), 0 6px 14px rgba(0,0,0,.35);
+  }
+  #toast{
+    position:fixed; left:50%; bottom:18px; transform:translateX(-50%) translateY(120%);
+    background:var(--panel-light); color:var(--ink); padding:10px 16px; border-radius:10px;
+    font-size:13px; box-shadow:0 6px 16px rgba(0,0,0,.4); z-index:2000; max-width:88%;
+    display:flex; align-items:center; gap:10px; transition:transform .3s ease;
+  }
+  #toast.show{ transform:translateX(-50%) translateY(0); }
+  #toast button{
+    background:var(--accent); border:none; color:#2b1d14; font-weight:700;
+    padding:5px 10px; border-radius:7px; font-size:12px; cursor:pointer;
+  }
+  #version-tag{ position:fixed; right:8px; bottom:6px; font-size:9px; color:rgba(255,255,255,.25); z-index:1; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">
+      <div class="brand-badge">🪵</div>
+      <div class="brand-name">Knotty Blocks<small id="tagline">Endless Wood Stack</small></div>
+    </div>
+    <div class="scores">
+      <div class="score-box"><div class="label">Score</div><div class="value" id="score">0</div></div>
+      <div class="score-box"><div class="label">Level</div><div class="value" id="level">1</div></div>
+      <div class="score-box"><div class="label">Best</div><div class="value" id="best">0</div></div>
+    </div>
+  </header>
+
+  <div id="banner"></div>
+
+  <div id="next-bar">
+    <span class="next-label">Next</span>
+    <div id="next-preview"></div>
+  </div>
+
+  <div id="board-wrap">
+    <div id="board"></div>
+    <div id="combo-flash"></div>
+    <div id="overlay">
+      <h1 id="overlay-title">Topped Out!</h1>
+      <p id="overlay-msg">The stack reached the top.</p>
+      <div class="final-score" id="final-score">0</div>
+      <button class="primary" id="restart-btn">Play Again</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"><span id="toast-msg"></span><button id="toast-action" style="display:none;"></button></div>
+<div id="version-tag">v<span id="version-num"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Embedded version (bumped by hand or by the hotfix pipeline) ----------
+  var EMBEDDED_VERSION = "2.0.0";
+  document.getElementById("version-num").textContent = EMBEDDED_VERSION;
+
+  // ---------- Config (overridable live via applyRemoteConfig / postMessage) ----------
+  var CONFIG = {
+    cols: 10,
+    rows: 20,
+    bannerText: "",
+    enableComboFlash: true,
+    startDropMs: 800,        // time between automatic drops at level 1
+    dropDecreasePerLevel: 40,// each level shaves this many ms off the drop interval
+    minDropMs: 120,          // drop interval never gets faster than this
+    linesPerLevel: 10,       // clear this many total lines to advance a level
+    pieceWeights: {}         // pieceType -> relative weight override (default: uniform)
+  };
+
+  // ---------- Pieces: the classic 7 tetrominoes, original wood palette ----------
+  // Each entry's `cells` is its rotation-0 layout inside an n x n box; the other
+  // 3 rotation states are derived automatically (see rotateCW below), rather
+  // than hand-authored, so there's one source of truth per shape.
+  var PIECE_DEFS = {
+    I: { n:4, cells:[[1,0],[1,1],[1,2],[1,3]], wood:"ebony" },
+    O: { n:2, cells:[[0,0],[0,1],[1,0],[1,1]], wood:"oak" },
+    T: { n:3, cells:[[0,1],[1,0],[1,1],[1,2]], wood:"mahogany" },
+    S: { n:3, cells:[[0,1],[0,2],[1,0],[1,1]], wood:"walnut" },
+    Z: { n:3, cells:[[0,0],[0,1],[1,1],[1,2]], wood:"cherry" },
+    J: { n:3, cells:[[0,0],[1,0],[1,1],[1,2]], wood:"pine" },
+    L: { n:3, cells:[[0,2],[1,0],[1,1],[1,2]], wood:"birch" }
+  };
+  var PIECE_TYPES = Object.keys(PIECE_DEFS);
+
+  function rotateCW(cells, n){
+    return cells.map(function(c){ return [c[1], n-1-c[0]]; });
+  }
+  PIECE_TYPES.forEach(function(type){
+    var def = PIECE_DEFS[type];
+    var states = [def.cells];
+    for (var i=1;i<4;i++) states.push(rotateCW(states[i-1], def.n));
+    def.states = states;
+  });
+
+  // ---------- State ----------
+  var COLS = CONFIG.cols, ROWS = CONFIG.rows;
+  var board = []; // ROWS x COLS, null or wood class name
+  var score = 0, best = 0, level = 1, linesTotal = 0, combo = 0;
+  var dropIntervalMs = CONFIG.startDropMs;
+  var current = null;
+  var nextType = null;
+  var gameOver = false;
+  var dropTimer = null;
+
+  var boardEl = document.getElementById("board");
+  var scoreEl = document.getElementById("score");
+  var bestEl = document.getElementById("best");
+  var levelEl = document.getElementById("level");
+  var nextPreviewEl = document.getElementById("next-preview");
+  var bannerEl = document.getElementById("banner");
+  var overlayEl = document.getElementById("overlay");
+  var overlayTitleEl = document.getElementById("overlay-title");
+  var overlayMsgEl = document.getElementById("overlay-msg");
+  var finalScoreEl = document.getElementById("final-score");
+  var comboFlashEl = document.getElementById("combo-flash");
+  var cellEls = [];
+
+  function loadBest(){
+    try { return parseInt(localStorage.getItem("kb_best") || "0", 10) || 0; } catch(e){ return 0; }
+  }
+  function saveBest(v){
+    try { localStorage.setItem("kb_best", String(v)); } catch(e){}
+  }
+
+  function buildBoardDOM(){
+    boardEl.style.gridTemplateColumns = "repeat(" + COLS + ",1fr)";
+    boardEl.style.gridTemplateRows = "repeat(" + ROWS + ",1fr)";
+    boardEl.innerHTML = "";
+    cellEls = [];
+    for (var r=0;r<ROWS;r++){
+      var row = [];
+      for (var c=0;c<COLS;c++){
+        var cell = document.createElement("div");
+        cell.className = "cell";
+        cell.dataset.r = r; cell.dataset.c = c;
+        boardEl.appendChild(cell);
+        row.push(cell);
+      }
+      cellEls.push(row);
+    }
+  }
+
+  function emptyBoard(){
+    var b = [];
+    for (var r=0;r<ROWS;r++) b.push(new Array(COLS).fill(null));
+    return b;
+  }
+
+  function randomPieceType(){
+    var total = 0;
+    var entries = PIECE_TYPES.map(function(t){
+      var w = (CONFIG.pieceWeights && CONFIG.pieceWeights[t] != null) ? CONFIG.pieceWeights[t] : 1;
+      total += w;
+      return { t:t, w:w };
+    });
+    var r = Math.random() * total;
+    for (var i=0;i<entries.length;i++){
+      r -= entries[i].w;
+      if (r <= 0) return entries[i].t;
+    }
+    return entries[entries.length-1].t;
+  }
+
+  function spawnPieceOfType(type){
+    var def = PIECE_DEFS[type];
+    return {
+      type: type,
+      rot: 0,
+      wood: def.wood,
+      row: 0,
+      col: Math.floor((COLS - def.n) / 2)
+    };
+  }
+
+  function pieceCells(piece){
+    var def = PIECE_DEFS[piece.type];
+    return def.states[piece.rot].map(function(off){
+      return [piece.row + off[0], piece.col + off[1]];
+    });
+  }
+
+  function collides(piece, dRow, dCol, rot){
+    var test = { type:piece.type, rot: (rot!=null ? rot : piece.rot), row:piece.row+(dRow||0), col:piece.col+(dCol||0) };
+    var cells = pieceCells(test);
+    for (var i=0;i<cells.length;i++){
+      var r = cells[i][0], c = cells[i][1];
+      if (c<0 || c>=COLS || r>=ROWS) return true;
+      if (r>=0 && board[r][c]) return true; // r<0 (above the visible board) never collides
+    }
+    return false;
+  }
+
+  function tryMove(dRow, dCol){
+    if (!current || gameOver) return false;
+    if (!collides(current, dRow, dCol)){
+      current.row += dRow; current.col += dCol;
+      return true;
+    }
+    return false;
+  }
+
+  function tryRotate(){
+    if (!current || gameOver) return false;
+    var def = PIECE_DEFS[current.type];
+    var newRot = (current.rot + 1) % def.states.length;
+    var kicks = [0, -1, 1, -2, 2]; // simple wall-kick: nudge sideways if the raw rotation collides
+    for (var i=0;i<kicks.length;i++){
+      if (!collides(current, 0, kicks[i], newRot)){
+        current.col += kicks[i];
+        current.rot = newRot;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function updateDropInterval(){
+    dropIntervalMs = Math.max(CONFIG.minDropMs, CONFIG.startDropMs - (level-1)*CONFIG.dropDecreasePerLevel);
+  }
+
+  function scheduleDrop(){
+    if (dropTimer) clearTimeout(dropTimer);
+    dropTimer = setTimeout(dropTick, dropIntervalMs);
+  }
+
+  function dropTick(){
+    if (gameOver) return;
+    if (tryMove(1,0)){
+      render();
+      scheduleDrop();
+    } else {
+      lockAndAdvance();
+    }
+  }
+
+  function hardDrop(){
+    if (!current || gameOver) return;
+    while (tryMove(1,0)) {}
+    render();
+    lockAndAdvance();
+  }
+
+  function lockAndAdvance(){
+    lockPiece();
+    render();
+    if (gameOver) return;
+    if (spawnNext()){
+      render();
+      scheduleDrop();
+    }
+  }
+
+  function lockPiece(){
+    pieceCells(current).forEach(function(rc){
+      if (rc[0] >= 0) board[rc[0]][rc[1]] = current.wood;
+    });
+    var cleared = clearLines();
+    if (cleared > 0){
+      combo++;
+      var base = [0,100,300,500,800][cleared] || (cleared*200);
+      var points = base*level + (combo>1 ? (combo-1)*50*level : 0);
+      score += points;
+      linesTotal += cleared;
+      var newLevel = Math.floor(linesTotal / CONFIG.linesPerLevel) + 1;
+      if (newLevel !== level){ level = newLevel; updateDropInterval(); }
+      flashCombo(cleared, combo);
+    } else {
+      combo = 0;
+    }
+    if (score > best){ best = score; saveBest(best); }
+    updateHUD();
+  }
+
+  function clearLines(){
+    var fullRows = [];
+    for (var r=0;r<ROWS;r++){
+      if (board[r].every(function(v){ return !!v; })) fullRows.push(r);
+    }
+    if (fullRows.length === 0) return 0;
+    fullRows.forEach(function(r){
+      for (var c=0;c<COLS;c++) cellEls[r][c].classList.add("clearing");
+    });
+    setTimeout(function(){
+      // Process in ascending original-index order: removing row r and
+      // unshifting a blank row shifts every row ABOVE r down by one (correct
+      // -- they fall into the gap) while rows below r keep their index
+      // (correct -- they were already resting below the cleared line and
+      // don't move). Because that shift never touches indices greater than
+      // r, later entries in fullRows (which are all > r) are still valid.
+      fullRows.forEach(function(r){
+        board.splice(r, 1);
+        board.unshift(new Array(COLS).fill(null));
+      });
+      render();
+    }, 180);
+    return fullRows.length;
+  }
+
+  function flashCombo(lines, comboCount){
+    if (!CONFIG.enableComboFlash) return;
+    var labels = {1:"Line Clear!", 2:"Double Clear!", 3:"Triple Clear!", 4:"Quad Clear!"};
+    var text = labels[lines] || (lines + "x Clear!");
+    if (comboCount > 1) text += "  x" + comboCount + " combo";
+    comboFlashEl.textContent = text;
+    comboFlashEl.classList.remove("show");
+    void comboFlashEl.offsetWidth;
+    comboFlashEl.classList.add("show");
+  }
+
+  function updateHUD(){
+    scoreEl.textContent = score;
+    bestEl.textContent = best;
+    levelEl.textContent = level;
+  }
+
+  function currentCellMap(){
+    var map = {};
+    if (current && !gameOver){
+      pieceCells(current).forEach(function(rc){
+        if (rc[0] >= 0) map[rc[0] + "," + rc[1]] = current.wood;
+      });
+    }
+    return map;
+  }
+
+  function render(){
+    var activeMap = currentCellMap();
+    for (var r=0;r<ROWS;r++){
+      for (var c=0;c<COLS;c++){
+        var el = cellEls[r][c];
+        if (el.classList.contains("clearing")) continue; // let the pop animation finish undisturbed
+        var val = board[r][c] || activeMap[r + "," + c] || null;
+        if (val){
+          el.classList.add("filled");
+          if (!el.firstChild){
+            var b = document.createElement("div");
+            b.className = "block wood-" + val;
+            el.appendChild(b);
+          } else {
+            el.firstChild.className = "block wood-" + val;
+          }
+        } else {
+          el.classList.remove("filled");
+          el.innerHTML = "";
+        }
+      }
+    }
+  }
+
+  function renderNextPreview(){
+    nextPreviewEl.innerHTML = "";
+    var def = PIECE_DEFS[nextType];
+    var cellPx = 16, gapPx = 3;
+    var w = def.n*cellPx + (def.n-1)*gapPx;
+    var h = w;
+    var box = document.createElement("div");
+    box.style.position = "relative";
+    box.style.width = w + "px";
+    box.style.height = h + "px";
+    def.states[0].forEach(function(off){
+      var d = document.createElement("div");
+      d.className = "block wood-" + def.wood;
+      d.style.position = "absolute";
+      d.style.left = (off[1]*(cellPx+gapPx)) + "px";
+      d.style.top = (off[0]*(cellPx+gapPx)) + "px";
+      d.style.width = cellPx + "px";
+      d.style.height = cellPx + "px";
+      box.appendChild(d);
+    });
+    nextPreviewEl.appendChild(box);
+  }
+
+  function spawnNext(){
+    current = spawnPieceOfType(nextType);
+    nextType = randomPieceType();
+    renderNextPreview();
+    if (collides(current, 0, 0)){
+      triggerGameOver("Topped Out!", "The stack reached the top.");
+      return false;
+    }
+    return true;
+  }
+
+  function triggerGameOver(title, msg){
+    gameOver = true;
+    if (dropTimer) clearTimeout(dropTimer);
+    overlayTitleEl.textContent = title;
+    overlayMsgEl.textContent = msg;
+    finalScoreEl.textContent = score;
+    overlayEl.classList.add("show");
+  }
+
+  function startGame(){
+    overlayEl.classList.remove("show");
+    score = 0; level = 1; linesTotal = 0; combo = 0; gameOver = false;
+    updateDropInterval();
+    board = emptyBoard();
+    buildBoardDOM();
+    nextType = randomPieceType();
+    updateHUD();
+    if (spawnNext()){
+      render();
+      scheduleDrop();
+    }
+  }
+
+  // ---------- Touch controls ----------
+  // Tap the left/right half of the board to nudge the piece that way, tap
+  // directly on the falling piece to rotate it, swipe down to hard-drop.
+  // (Arrow keys + space also work, mainly so this is testable on desktop.)
+  var touchStart = null;
+  var TAP_SLOP = 12;
+  var SWIPE_MIN = 40;
+
+  boardEl.addEventListener("pointerdown", function(ev){
+    if (gameOver) return;
+    touchStart = { x: ev.clientX, y: ev.clientY, t: Date.now() };
+  });
+
+  boardEl.addEventListener("pointerup", function(ev){
+    if (!touchStart || gameOver || !current) { touchStart = null; return; }
+    var dx = ev.clientX - touchStart.x;
+    var dy = ev.clientY - touchStart.y;
+    touchStart = null;
+
+    if (dy > SWIPE_MIN && Math.abs(dy) > Math.abs(dx)){
+      hardDrop();
+      return;
+    }
+    if (Math.abs(dx) > TAP_SLOP || Math.abs(dy) > TAP_SLOP) return; // an unrecognized drag/swipe, ignore
+
+    var boardRect = boardEl.getBoundingClientRect();
+    var cellW = boardRect.width / COLS;
+    var cellH = boardRect.height / ROWS;
+    var tapCol = Math.floor((ev.clientX - boardRect.left) / cellW);
+    var tapRow = Math.floor((ev.clientY - boardRect.top) / cellH);
+    var onPiece = pieceCells(current).some(function(rc){ return rc[0] === tapRow && rc[1] === tapCol; });
+    if (onPiece){
+      tryRotate();
+    } else if (ev.clientX < boardRect.left + boardRect.width/2){
+      tryMove(0,-1);
+    } else {
+      tryMove(0,1);
+    }
+    render();
+  });
+
+  window.addEventListener("keydown", function(ev){
+    if (gameOver) return;
+    if (ev.key === "ArrowLeft"){ tryMove(0,-1); render(); }
+    else if (ev.key === "ArrowRight"){ tryMove(0,1); render(); }
+    else if (ev.key === "ArrowDown"){ tryMove(1,0); render(); }
+    else if (ev.key === "ArrowUp"){ tryRotate(); render(); }
+    else if (ev.key === " "){ ev.preventDefault(); hardDrop(); }
+  });
+
+  // ---------- Remote config hook (used by hotfix loader) ----------
+  window.applyRemoteConfig = function(cfg){
+    if (!cfg || typeof cfg !== "object") return;
+    if (typeof cfg.bannerText === "string") {
+      CONFIG.bannerText = cfg.bannerText;
+      bannerEl.textContent = cfg.bannerText;
+    }
+    if (typeof cfg.enableComboFlash === "boolean") CONFIG.enableComboFlash = cfg.enableComboFlash;
+    if (typeof cfg.startDropMs === "number") CONFIG.startDropMs = cfg.startDropMs;
+    if (typeof cfg.dropDecreasePerLevel === "number") CONFIG.dropDecreasePerLevel = cfg.dropDecreasePerLevel;
+    if (typeof cfg.minDropMs === "number") CONFIG.minDropMs = cfg.minDropMs;
+    if (typeof cfg.linesPerLevel === "number") CONFIG.linesPerLevel = cfg.linesPerLevel;
+    if (cfg.pieceWeights && typeof cfg.pieceWeights === "object") CONFIG.pieceWeights = cfg.pieceWeights;
+    updateDropInterval();
+    updateHUD();
+  };
+
+  window.addEventListener("message", function(ev){
+    if (ev && ev.data && ev.data.type === "kb-remote-config") {
+      window.applyRemoteConfig(ev.data.config);
+    }
+  });
+
+  // Apply any config cached from a previous hotfix check (works when this file
+  // is loaded directly, same-origin, e.g. inside the packaged app).
+  try {
+    var cachedCfg = localStorage.getItem("kb_remoteConfig");
+    if (cachedCfg) window.applyRemoteConfig(JSON.parse(cachedCfg));
+  } catch(e){}
+
+  document.getElementById("restart-btn").addEventListener("click", startGame);
+
+  // ---------- Boot ----------
+  best = loadBest();
+  updateHUD();
+  startGame();
+
+})();
+</script>
+</body>
+</html>
